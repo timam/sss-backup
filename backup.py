@@ -18,6 +18,16 @@ def gimme_source():
         return 's3://' + source_bucket + '/' + app_name + '/'
 
 
+def display_backing_up_message():
+    print('='*50 +"\nToday is : " + str(date_today))
+    print("Taking backup of : " + app_name)
+
+
+def display_backup_success_message():
+    print('='*50 +"\nBackup for " + app_name + " is completed")
+    print("Backup is available on : " + destination)
+
+
 def gimme_destination():
     if not app_name:
         return 's3://' + backup_bucket + '/' + source_bucket + '-' + str(date_today) + '/'
@@ -56,19 +66,34 @@ def gimme_cleanup_list(last_seven_days, list_of_backups):
     return cleanup
 
 
+def display_cleanup_message(cleanup_list):
+    if len(cleanup_list) == 0 :
+        print('='*50 + "\nIdentified " + str(len(cleanup_list)) + " backup for cleanup")
+        print("Nothing to do...")
+    else:
+        print('='*50 + "\nIdentified " + str(len(cleanup_list)) + " backup for cleanup")
+        print("Cleaning Up : " + str(cleanup_list))
+
+
+
 # Gathering Source and Destination Information
 source = gimme_source()
 destination = gimme_destination()
 
 # BackingUp
+display_backing_up_message()
 subprocess.check_output(['aws', 's3', 'sync', source, destination])
+display_backup_success_message()
 
 # Gathering Backup Cleanup Information
 last_seven_days = gimme_last_seven_days()
 list_of_backups = gimme_list_of_backups()
 cleanup_list = gimme_cleanup_list(last_seven_days, list_of_backups)
 
+display_cleanup_message(cleanup_list)
+
 for item in cleanup_list:
     path = 's3://' + backup_bucket + '/' + app_name + '/' + item + '/'
     subprocess.check_output(['aws', 's3', 'rm', '--recursive', path])
+    print("Cleanup Done : " + item)
 
