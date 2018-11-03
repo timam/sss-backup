@@ -6,12 +6,6 @@ date_today = datetime.now().date()
 
 backup_bucket = 'saif-timam-terraform'
 
-app_name = 'swin'
-
-
-def gimme_destination():
-    return 's3://' + backup_bucket + '/' + app_name + '/' + str(date_today) + '/'
-
 
 def gimme_last_seven_days():
     days_of_last_week = []
@@ -23,7 +17,22 @@ def gimme_last_seven_days():
     return days_of_last_week
 
 
-def gimme_list_of_backups():
+def gimme_list_of_apps():
+    app_list = []
+
+    bucket = 's3://' + backup_bucket + '/'
+    all_apps = subprocess.check_output(['aws', 's3', 'ls', bucket]).decode('utf-8')
+
+    raw_app_list = all_apps.split('/')
+
+    for item in raw_app_list:
+        date = item.replace('PRE ', '').lstrip()
+        app_list.append(date)
+
+    return app_list[:-1]
+
+
+def gimme_list_of_backups(app_name):
     backup_list = []
 
     app_path = 's3://' + backup_bucket + '/' + app_name + '/'
@@ -44,27 +53,36 @@ def gimme_cleanup_list(last_seven_days, list_of_backups):
     return cleanup
 
 
+def cleanup(cleanup_list):
+    for item in cleanup_list:
+        path = 's3://' + backup_bucket + '/' + app_name + '/' + item + '/'
+        subprocess.check_output(['aws', 's3', 'rm', '--recursive', path])
+        print("Cleanup Done : " + item)
+
+
+def display_list_of_backups(app_name, list_of_backups):
+    print("-" * 70)
+    print(app_name + ' has ' + str(len(list_of_backups)) + ' backups')
+
+
 def display_cleanup_message(cleanup_list):
-    if len(cleanup_list) == 0 :
-        print('='*50 + "\nIdentified " + str(len(cleanup_list)) + " backup for cleanup")
-        print("Nothing to do...")
+
+    if len(cleanup_list) == 0:
+        print("0 backup marked for cleanup")
     else:
-        print('='*50 + "\nIdentified " + str(len(cleanup_list)) + " backup for cleanup")
-        print("Cleaning Up : " + str(cleanup_list))
+        print(str(len(cleanup_list)) + " marked for backup \nclenaing up: " + str(cleanup_list))
 
 
-# Gathering Source and Destination Information
-destination = gimme_destination()
-
-
-# Gathering Backup Cleanup Information
 last_seven_days = gimme_last_seven_days()
-list_of_backups = gimme_list_of_backups()
-cleanup_list = gimme_cleanup_list(last_seven_days, list_of_backups)
+list_of_apps = gimme_list_of_apps()
 
-display_cleanup_message(cleanup_list)
 
-for item in cleanup_list:
-    path = 's3://' + backup_bucket + '/' + app_name + '/' + item + '/'
-    subprocess.check_output(['aws', 's3', 'rm', '--recursive', path])
-    print("Cleanup Done : " + item)
+for app_name in list_of_apps:
+
+    list_of_backups = gimme_list_of_backups(app_name)
+    display_list_of_backups(app_name, list_of_backups)
+
+    cleanup_list = gimme_cleanup_list(last_seven_days, list_of_backups)
+    display_cleanup_message(cleanup_list)
+
+    cleanup(cleanup_list)
